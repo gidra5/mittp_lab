@@ -9,9 +9,9 @@ import (
 const n = 10
 const k = 5
 const p = 0.5
-const t = 10
+const t = 60
 const period = 5
-const synced = 6
+const synced = 4
 const collectorBufferSize = 1
 
 type Number interface {
