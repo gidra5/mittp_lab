@@ -11,7 +11,8 @@ const k = 5
 const p = 0.5
 const t = 10
 const period = 5
-const synced = false
+const synced = 6
+const collectorBufferSize = 1
 
 type Number interface {
 	int | float32 | float64
@@ -50,6 +51,7 @@ func countCells(cells *CellArray) int {
 }
 
 func main() {
+	mutex := sync.Mutex{}
 	var cells CellArray
 
 	// init
@@ -64,14 +66,34 @@ func main() {
 
 	printCells(&cells)
 
+	var stepF StepFunc
+	if synced == 1 {
+		stepF = func(from, to int) { step1(from, to, &cells) }
+	} else if synced == 2 {
+		stepF = func(from, to int) { step2(from, to, &cells) }
+	} else if synced == 3 {
+		stepF = func(from, to int) { step3(from, to, &mutex, &cells) }
+	} else if synced == 4 {
+		stepF = func(from, to int) { step4(from, to, &cells) }
+	} else if synced == 5 {
+		stepF = func(from, to int) { step5(from, to, &cells) }
+	} else {
+		collector := make(chan Change, collectorBufferSize)
+		go (func() {
+			for change := range collector {
+				cells[change.from].count--
+				cells[change.to].count++
+			}
+		})()
+		stepF = func(from, to int) { step6(from, to, collector) }
+	}
+
 	done := make(signal)
+
 	// start k goroutines for each of the k atoms
 	for i := 0; i < k; i++ {
-		if synced {
-			go step2(0, &cells, done)
-		} else {
-			go step1(0, &cells, done)
-		}
+
+		go simulate(0, done, stepF)
 	}
 
 	// log the state of the cells every `period` seconds
@@ -86,9 +108,11 @@ func main() {
 				for i := 0; i < n; i++ {
 					cells[i].mutex.Lock()
 				}
+				mutex.Lock()
 
 				printCells(&cells)
 
+				mutex.Unlock()
 				for i := 0; i < n; i++ {
 					cells[i].mutex.Unlock()
 				}
@@ -100,6 +124,7 @@ func main() {
 	close(done)
 
 	// check the final state of the cells
+	printCells(&cells)
 	fmt.Printf("Total cell count after simulation: %v", countCells(&cells))
 	fmt.Println()
 }
